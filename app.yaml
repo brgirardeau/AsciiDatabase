@@ -15,8 +15,8 @@ handlers:
   static_dir: stylesheets
 - url: /images
   static_dir: images
+- url: /javascrip
+  static_dir: scripts
 - url: /.*
   script: ascii.application
-  script: /javascript/ie10-viewport-bug-workaround.js
-  script: /javascript/docs.min.js
-  srcipt: /javascript/bootstrap.min.js
+
