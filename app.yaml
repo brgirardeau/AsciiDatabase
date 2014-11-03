@@ -17,6 +17,12 @@ handlers:
   static_dir: images
 - url: /javascrip
   static_dir: scripts
+- url: /signup
+  script: ascii.application
+  secure: always
+- url: /signin
+  script: ascii.application
+  secure: always
 - url: /.*
   script: ascii.application
 
