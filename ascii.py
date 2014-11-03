@@ -15,39 +15,25 @@ JINJA_ENVIRONMENT = jinja2.Environment(
 	loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
 	extensions=['jinja2.ext.autoescape'])
 
-def validLogin(username, password):
-	return 1
+# def validLogin(username, password):
+# 	return 1
 
-def validSignUp(username, password, passwordTwo):
-	return 1
+# def validSignUp(username, password, passwordTwo):
+# 	return 1
 
-class User(webapp2_extras.appengine.auth.models.User):
-	def set_password(self, raw_password):
-		"""Sets the password for the current user
- 
-    	:param raw_password:
-       		The raw password which will be hashed and stored
-   		"""
-		self.password = security.generate_password_has(raw_password, length=12)
-	def get_by_auth_token(cls, user_id, token, subject='auth'):
-	    """Returns a user object based on a user ID and token.
-	 
-	    :param user_id:
-	        The user_id of the requesting user.
-	    :param token:
-	        The token string to be verified.
-	    :returns:
-	        A tuple ``(User, timestamp)``, with a user object and
-	        the token timestamp, or ``(None, None)`` if both were not found.
-	    """
-	    token_key = cls.token_model.get_key(user_id, subject, token)
-	    user_key = ndb.Key(cls, user_id)
-	    # User get_multi() to save a RPC call.
-	    valid_token, user = ndb.get_multi([token_key, user_key])
-	    if valid_token and user:
-	    	timestamp = int(time.mktime(valid_token.created.timetuple()))
-	    	return user, timestamp
-	    return None, None
+def user_required(handler):
+  """
+    Decorator that checks if there's a user associated with the current session.
+    Will also fail if there's no session present.
+  """
+  def check_login(self, *args, **kwargs):
+    auth = self.auth
+    if not auth.get_user_by_session():
+      self.redirect(self.uri_for('login'), abort=True)
+    else:
+      return handler(self, *args, **kwargs)
+
+  return check_login
 
 class BaseHandler(webapp2.RequestHandler):
   @webapp2.cached_property
@@ -93,21 +79,14 @@ class BaseHandler(webapp2.RequestHandler):
       """Shortcut to access the current session."""
       return self.session_store.get_session(backend="datastore")
  
-  def render_template(self, view_filename, params=None):
-  	if not params:
-  		params={}
-	user = self.user_info
-	params['user'] = user
-	path = os.path.join(os.path.dirname(__file__), 'views', view_filename)
-	self.response.out.write(template.render(path, params))
- 
   def display_message(self, message):
     """Utility function to display a template with a simple message."""
     params = {
       'message': message
     }
-    self.render_template('message.html', params)
- 
+    template = JINJA_ENVIRONMENT.get_template('templates/message.html')
+    self.response.write(template.render(params))
+
   # this is needed for webapp2 sessions to work
   def dispatch(self):
       # Get a session store for this request.
@@ -120,39 +99,136 @@ class BaseHandler(webapp2.RequestHandler):
           # Save all sessions.
           self.session_store.save_sessions(self.response)
 
-class SignupHandler(BaseHandler):
-	def get(self):
-		template = JINJA_ENVIRONMENT.get_template('templates/signup.html')
- 		self.response.write(template.render())
+class VerificationHandler(BaseHandler):
+  def get(self, *args, **kwargs):
+    user = None
+    user_id = kwargs['user_id']
+    signup_token = kwargs['signup_token']
+    verification_type = kwargs['type']
+ 
+    # it should be something more concise like
+    # self.auth.get_user_by_token(user_id, signup_token
+    # unfortunately the auth interface does not (yet) allow to manipulate
+    # signup tokens concisely
+    user, ts = self.user_model.get_by_auth_token(int(user_id), signup_token,
+      'signup')
+ 
+    if not user:
+      logging.info('Could not find any user with id "%s" signup token "%s"',
+        user_id, signup_token)
+      self.abort(404)
+ 
+    # store user data in the session
+    self.auth.set_session(self.auth.store.user_to_dict(user), remember=True)
+ 
+    if verification_type == 'v':
+      # remove signup token, we don't want users to come back with an old link
+      self.user_model.delete_signup_token(user.get_id(), signup_token)
+ 
+      if not user.verified:
+        user.verified = True
+        user.put()
+ 
+      self.display_message('User email address has been verified.')
+      return
+    elif verification_type == 'p':
+      # supply user to the page
+      params = {
+        'user': user,
+        'token': signup_token
+      }
+      template = JINJA_ENVIRONMENT.get_template('templats/resetpassword.html')
+      self.response.write(template.render(params))
+    else:
+      logging.info('verification type not supported')
+      self.abort(404)
 
- 	def post(self):
-	    user_name = self.request.get('Username')
-	    email = self.request.get('Email')
-	    password = self.request.get('Password')
-	    passwordTwo = self.request.get('PasswordTwo')
-	 
-	    unique_properties = ['email_address']
-	    user_data = self.user_model.create_user(user_name,
-	      unique_properties,
-	      email_address=email, password_raw=password,
-	      verified=False)
-	    if not user_data[0]: #user_data is a tuple
-	      self.display_message('Unable to create user for email %s because of \
-	        duplicate keys %s' % (user_name, user_data[1]))
-	      return
-	 
-	    user = user_data[1]
-	    user_id = user.get_id()
-	 
-	    token = self.user_model.create_signup_token(user_id)
-	 
-	    verification_url = self.uri_for('verification', type='v', user_id=user_id,
-	      signup_token=token, _full=True)
-	 
-	    msg = 'Send an email to user in order to verify their address. \
-	          They will be able to do so by visiting  <a href="{url}">{url}</a>'
-	 
-	    self.display_message(msg.format(url=verification_url))
+class SignupHandler(BaseHandler):
+  def get(self):
+    template = JINJA_ENVIRONMENT.get_template('/templates/signup.html')
+    self.response.write(template.render())
+
+  def post(self):
+    user_name = self.request.get('Username')
+    email = self.request.get('Email')
+    password = self.request.get('Password')
+    passwordTwo = self.request.get('PasswordTwo')
+
+    unique_properties = ['email_address']
+    user_data = self.user_model.create_user(user_name,
+      unique_properties,
+      email_address=email, password_raw=password,
+      verified=False)
+    if not user_data[0]: #user_data is a tuple
+      self.display_message('Unable to create user for email %s because of \
+        duplicate keys %s' % (user_name, user_data[1]))
+      return
+    
+    user = user_data[1]
+    user_id = user.get_id()
+
+    token = self.user_model.create_signup_token(user_id)
+
+    verification_url = self.uri_for('verification', type='v', user_id=user_id,
+      signup_token=token, _full=True)
+
+    msg = 'Send an email to user in order to verify their address. \
+          They will be able to do so by visiting <a href="{url}">{url}</a>'
+
+    self.display_message(msg.format(url=verification_url))
+
+class SetPasswordHandler(BaseHandler):
+
+  @user_required
+  def post(self):
+    password = self.request.get('password')
+    old_token = self.request.get('t')
+
+    if not password or password != self.request.get('confirm_password'):
+      self.display_message('passwords do not match')
+      return
+
+    user = self.user
+    user.set_password(password)
+    user.put()
+
+    # remove signup token, we don't want users to come back with an old link
+    self.user_model.delete_signup_token(user.get_id(), old_token)
+    
+    self.display_message('Password updated')
+
+class ForgotPasswordHandler(BaseHandler):
+  def get(self):
+    self._serve_page()
+
+  def post(self):
+    username = self.request.get('username')
+
+    user = self.user_model.get_by_auth_id(username)
+    if not user:
+      logging.info('Could not find any user entry for username %s', username)
+      self._serve_page(not_found=True)
+      return
+
+    user_id = user.get_id()
+    token = self.user_model.create_signup_token(user_id)
+
+    verification_url = self.uri_for('verification', type='p', user_id=user_id,
+      signup_token=token, _full=True)
+
+    msg = 'Send an email to user in order to reset their password. \
+          They will be able to do so by visiting <a href="{url}">{url}</a>'
+
+    self.display_message(msg.format(url=verification_url))
+  
+  def _serve_page(self, not_found=False):
+    username = self.request.get('username')
+    params = {
+      'username': username,
+      'not_found': not_found
+    }
+    template = JINJA_ENVIRONMENT.get_template('/templates/forgot.html')
+    self.response.write(template.render(params))
 
 class LoginHandler(BaseHandler):
 	def get(self):
@@ -163,7 +239,7 @@ class LoginHandler(BaseHandler):
 		username = self.request.get('Username')
 		password = self.request.get('Password')
 		try:
-			u = self.auth.get_user_by_password(username, password, remember=True)
+			u = self.auth.get_user_by_password(username, password, remember=True, save_session=True)
 			self.redirect('/welcome')
 		except (InvalidAuthIdError, InvalidPasswordError) as e:
 			logging.info('Login failed for user %s because of %s', username, type(e))
@@ -181,13 +257,17 @@ class LoginHandler(BaseHandler):
 class LogoutHandler(BaseHandler):
 	def get(self):
 		self.auth.unset_session()
-		self.redirect(self.uri_for('home'))
+		self.redirect('/')
 
-class HomePage(webapp2.RequestHandler):
+class HomePage(BaseHandler):
 	def get(self):
-		self.response.headers['content-type']='text/html'
 		template = JINJA_ENVIRONMENT.get_template('templates/homepage.html')
 		self.response.write(template.render())
+
+class AuthenticatedHandler(BaseHandler):
+  @user_required
+  def get(self):
+  	self.redirect('/welcome')
 
 # class SignUpPage(webapp2.RequestHandler):
 # 	def get(self):
@@ -213,7 +293,7 @@ class HomePage(webapp2.RequestHandler):
 # 		if validLogin(username, password):
 # 			self.redirect('/profile')
 
-class WelcomePage(webapp2.RequestHandler):
+class WelcomePage(BaseHandler):
 	def get(self):
 		self.response.headers['content-type']='text/html'
 		template = JINJA_ENVIRONMENT.get_template('templates/welcome.html')
@@ -221,7 +301,7 @@ class WelcomePage(webapp2.RequestHandler):
 		template_values = {"username": username}
 		self.response.write(template.render(template_values))
 
-class ProfilePage(webapp2.RequestHandler):
+class ProfilePage(BaseHandler):
 	def get(self):
 		self.response.headers['content-type']='text/html'
 		template = JINJA_ENVIRONMENT.get_template('templates/profilepage.html')
@@ -230,7 +310,7 @@ class ProfilePage(webapp2.RequestHandler):
 config = {
   'webapp2_extras.auth': {
     'user_model': 'models.User',
-    'user_attributes': ['email']
+    'user_attributes': ['name']
   },
   'webapp2_extras.sessions': {
     'secret_key': 'YOUR_SECRET_KEY'
@@ -243,4 +323,6 @@ application = webapp2.WSGIApplication([
 	('/signin', LoginHandler),
 	('/profile', ProfilePage),
 	('/welcome', WelcomePage),
+	webapp2.Route('/<type:v|p>/<user_id:\d+>-<signup_token:.+>',
+  handler=VerificationHandler, name='verification')
 ], debug=True)
