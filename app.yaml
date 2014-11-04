@@ -2,27 +2,36 @@ application: asciisite
 version: 1
 runtime: python27
 api_version: 1
-threadsafe: true
+threadsafe: yes
+
+handlers:
+- url: /images
+  static_dir: images
+
+- url: /javascrip
+  static_dir: scripts
+  
+- url: /stylesheets
+  static_dir: stylesheets
+
+- url: /signup
+  script: main.app
+  secure: always
+
+- url: /login
+  script: main.app
+  secure: always
+
+- url: /forgot
+  script: main.app
+  secure: always
+
+- url: .*
+  script: main.app
+
 
 libraries:
 - name: webapp2
-  version: 2.5.2
+  version: "2.5.2"
 - name: jinja2
-  version: 2.6
-
-handlers:
-- url: /stylesheets
-  static_dir: stylesheets
-- url: /images
-  static_dir: images
-- url: /javascrip
-  static_dir: scripts
-- url: /signup
-  script: ascii.application
-  secure: always
-- url: /signin
-  script: ascii.application
-  secure: always
-- url: /.*
-  script: ascii.application
-
+  version: "2.6"

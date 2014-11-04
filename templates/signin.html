@@ -29,8 +29,9 @@
 
       <form class="form-signin" method="post" role="form">
         <h2 class="form-signin-heading">Please sign in</h2>
-        <p><input type="username" name="Username" class="form-control" placeholder="Username" required autofocus></p>
+        <p><input type="username" name="Username" class="form-control" placeholder="Username" required autofocus>{{username}}</p>
         <input type="password" name="Password" class="form-control" placeholder="Password" required>
+		 <p class="error">{{failed}}<p>
 <!--
         <div class="checkbox">
           <label>
