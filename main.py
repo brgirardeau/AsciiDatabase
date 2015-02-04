@@ -25,6 +25,9 @@ JINJA_ENVIRONMENT = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
     extensions=['jinja2.ext.autoescape'])
 
+def escape_html(s):
+   return cgi.escape(s, quote = True)
+
 def user_required(handler):
   """
     Decorator that checks if there's a user associated with the current session.
@@ -109,6 +112,18 @@ class BaseHandler(webapp2.RequestHandler):
       finally:
           # Save all sessions.
           self.session_store.save_sessions(self.response)
+    ## saves you from having to type self.response.out.write
+  def write(self, a):            
+      self.response.out.write(a)
+  
+  ## takes a template and dictionary and returns a string with the rendered template
+  def render_str(self, template, **params): 
+    template = JINJA_ENVIRONMENT.get_template('templates/'+template)
+    return template.render(params)
+
+  ## takes a template and dictionary and writes the rendered template
+  def render(self, template, **kw):
+      self.write(self.render_str(template, **kw))
 
 class MainHandler(BaseHandler):
   def get(self):
@@ -160,6 +175,18 @@ class LoginHandler(BaseHandler):
     }
     self.render_template('templates/signin.html', params)
 
+class Art(db.Model):
+   title = db.StringProperty()  
+   art = db.TextProperty()
+   created = db.DateTimeProperty(auto_now_add = True)
+
+class PublicFeedHandler(BaseHandler):
+  def get(self):
+    arts = db.GqlQuery("SELECT * FROM Art "
+                       "ORDER BY created DESC ")
+    arts = list(arts)
+    self.render_template('templates/feed.html', arts=arts)
+
 class WelcomeHandler(BaseHandler):
   def get(self):
     self.render_template('templates/welcome.html')
@@ -191,6 +218,7 @@ app = webapp2.WSGIApplication([
     webapp2.Route('/logout', LogoutHandler, name='logout'),
     webapp2.Route('/welcome', WelcomeHandler),
     webapp2.Route('/profile', ProfileHandler),
+    webapp2.Route('/feed', PublicFeedHandler),
 ], debug=True, config=config)
 
 logging.getLogger().setLevel(logging.DEBUG)

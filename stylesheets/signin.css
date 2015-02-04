@@ -8,6 +8,10 @@ body {
   background-size: cover;
 }
 
+.error {
+  color:red;
+}
+
 .form-signin {
   max-width: 330px;
   padding: 15px;

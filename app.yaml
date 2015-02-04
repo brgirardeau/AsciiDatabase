@@ -8,8 +8,8 @@ handlers:
 - url: /images
   static_dir: images
 
-- url: /javascrip
-  static_dir: scripts
+- url: /js
+  static_dir: js
   
 - url: /stylesheets
   static_dir: stylesheets
