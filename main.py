@@ -2,7 +2,7 @@
 
 import jinja2
 from google.appengine.ext.webapp import template
-from google.appengine.ext import ndb
+from google.appengine.ext import db
 
 import logging
 import os.path
@@ -181,11 +181,10 @@ class Art(db.Model):
    created = db.DateTimeProperty(auto_now_add = True)
 
 class PublicFeedHandler(BaseHandler):
-  def get(self):
-    arts = db.GqlQuery("SELECT * FROM Art "
-                       "ORDER BY created DESC ")
-    arts = list(arts)
-    self.render_template('templates/feed.html', arts=arts)
+  def get(self, title="", art="", error=""):
+      arts = db.GqlQuery("SELECT * FROM Art "
+                         "ORDER BY created DESC ")
+      self.render("feed.html", title=title, art=art, error=error, arts=arts)
 
 class WelcomeHandler(BaseHandler):
   def get(self):

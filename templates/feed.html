@@ -7,32 +7,13 @@
   </head>
   <body>
     <h1>ASCII Art</h1>
-    <form method="post">
-      <label>
-        <div>title</div>
-        <input type="text" name="title" value="{{title}}">
-      </label>
-      <label>
-        <div>art</div>
-        <textarea name="art">{{art}}</textarea>
-      </label>
-      <div class="error">{{error}}</div>
-      <input type="submit">
-    </form>
-    
-    <hr>
-    
     <!-- Python code embedded in HTML for Jinja2 engine -->
     {% for art in arts %}
+    <hr>
        <div class="art">
 	 <div class="art-title">{{art.title}}</div>
 	 <pre class="art-body">{{art.art}}</pre>  <!-- pre tag preserves white space --> 
        </div>
     {% endfor %}
-
-
-
-    
-
   </body>
 </html>
