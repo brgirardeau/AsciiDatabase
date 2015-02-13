@@ -11,7 +11,8 @@
     {% for art in arts %}
     <hr>
        <div class="art">
-	 <div class="art-title">{{art.title}}</div>
+	 <div class="art-title">{{art.title}}</div><br>
+   <div class="art-author">{{art.author}}</div>
 	 <pre class="art-body">{{art.art}}</pre>  <!-- pre tag preserves white space --> 
        </div>
     {% endfor %}

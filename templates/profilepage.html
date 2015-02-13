@@ -82,6 +82,18 @@
             <div class="row">
                 <div class="col-lg-12">
                     <h1>Create</h1>
+                    <form method="post">
+                      <label>
+                        <div>title</div>
+                        <input type="text" name="title" value="{{title}}">
+                      </label>
+                      <label>
+                        <div>art</div>
+                        <textarea name="art">{{art}}</textarea>
+                      </label>
+                      <div class="error">{{error}}</div>
+                      <input type="submit">
+                    </form>
                 </div>
             </div>
         </div>
@@ -93,6 +105,14 @@
             <div class="row">
                 <div class="col-lg-12">
                     <h1>View</h1>
+                    {% for art in arts %}
+                    <hr>
+                       <div class="art">
+                     <div class="art-title">{{art.title}}</div><br>
+                   <div class="art-author">{{art.author}}</div>
+{{art.art}}<!-- </pre> -->  <!-- pre tag preserves white space --> 
+                       </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>

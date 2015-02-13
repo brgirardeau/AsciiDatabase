@@ -7,6 +7,7 @@ from google.appengine.ext import db
 import logging
 import os.path
 import webapp2
+import time
 
 from webapp2_extras import auth
 from webapp2_extras import sessions
@@ -179,21 +180,35 @@ class Art(db.Model):
    title = db.StringProperty()  
    art = db.TextProperty()
    created = db.DateTimeProperty(auto_now_add = True)
+   author = db.StringProperty()
 
 class PublicFeedHandler(BaseHandler):
+  @user_required
   def get(self, title="", art="", error=""):
       arts = db.GqlQuery("SELECT * FROM Art "
                          "ORDER BY created DESC ")
-      self.render("feed.html", title=title, art=art, error=error, arts=arts)
-
-class WelcomeHandler(BaseHandler):
-  def get(self):
-    self.render_template('templates/welcome.html')
+      arts = list(arts)
+      self.render("feed.html", title=title, art=art, arts=arts)
 
 class ProfileHandler(BaseHandler):
   @user_required
   def get(self):
-    self.render_template('templates/profilepage.html')
+    auth = self.auth
+    user = auth.get_user_by_session()['username']
+    arts = db.GqlQuery("SELECT * FROM Art WHERE author = '%s' ORDER BY created DESC" % user)
+    self.render("profilepage.html", arts=arts)
+  def post(self):
+    title = self.request.get("title")
+    art   = self.request.get("art")
+    if title and art:
+       a = Art(title=title,art=art)
+       auth = self.auth
+       user = auth.get_user_by_session()['username']
+       logging.info(user)
+       a.author = user
+       a.put()
+       time.sleep(0.2)
+       self.redirect("/profile")
 
 class LogoutHandler(BaseHandler):
   def get(self):
@@ -215,7 +230,6 @@ app = webapp2.WSGIApplication([
     webapp2.Route('/signup', SignupHandler),
     webapp2.Route('/signin', LoginHandler, name='login'),
     webapp2.Route('/logout', LogoutHandler, name='logout'),
-    webapp2.Route('/welcome', WelcomeHandler),
     webapp2.Route('/profile', ProfileHandler),
     webapp2.Route('/feed', PublicFeedHandler),
 ], debug=True, config=config)
