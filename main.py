@@ -147,7 +147,7 @@ class SignupHandler(BaseHandler):
       self.display_message('Unable to create user for email %s because of \
         duplicate keys %s' % (user_name, user_data[1]))
       return
-    self.redirect('/welcome')
+    self.redirect('/profile')
 
 class LoginHandler(BaseHandler):
   def get(self):
@@ -188,7 +188,7 @@ class PublicFeedHandler(BaseHandler):
       arts = db.GqlQuery("SELECT * FROM Art "
                          "ORDER BY created DESC ")
       arts = list(arts)
-      self.render("feed.html", title=title, art=art, arts=arts)
+      self.render("feedv2.html", title=title, art=art, arts=arts)
 
 class ProfileHandler(BaseHandler):
   @user_required
